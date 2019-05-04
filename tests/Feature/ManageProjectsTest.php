@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Project;
+use Facades\Tests\Setup\ProjectFactory;
 use Tests\TestCase;
 use Illuminate\Foundation\Testing\WithFaker;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -15,8 +16,6 @@ class ManageProjectsTest extends TestCase
 
     public function a_user_can_create_a_project()
     {
-        $this->withoutExceptionHandling();
-
         $this->signIn();
 
         $attributes = [
@@ -31,7 +30,7 @@ class ManageProjectsTest extends TestCase
 
         $response->assertRedirect($project->path());  //we should be redirected to the project path
 
-        $this->assertDatabaseHas('projects', $attributes); //it should be in the database
+//        $this->assertDatabaseHas('projects', $attributes); //it should be in the database // this is commented out because $project variable also has the created project
 
         $this->get($project->path())
             ->assertSee($attributes['title'])  //we should see the title in the dashboard
@@ -42,19 +41,36 @@ class ManageProjectsTest extends TestCase
     /** @test */
     public function a_user_can_update_a_project()
     {
-        $this->withoutExceptionHandling();
+//        $this->withoutExceptionHandling();
+        $project = ProjectFactory::create();
 
-        $this->signIn();
+        $this->actingAs($project->owner)->patch($project->path(),
+            $attributes = [
+                'notes' => 'changed',
+                'title' => 'changed',
+                'description' => 'changed'
+            ])->assertRedirect($project->path());
 
-        $project = factory('App\Project')->create(['owner_id' => auth()->id()]);
+        $this->get($project->path() . '/edit')->assertOk();
 
-        $this->patch($project->path(), [
-           'notes' => 'changed',
-        ])->assertRedirect($project->path());
-
-        $this->assertDatabaseHas('projects', ['notes' => 'changed']);
-
+        $this->assertDatabaseHas('projects', $attributes);
+        
     }
+    
+    /** @test */
+//    public function a_user_can_update_a_project_general_notes()
+//    {
+//        $this->withoutExceptionHandling();
+//        $project = ProjectFactory::create();
+//
+//        $this->actingAs($project->owner)->patch($project->path(),
+//            $attributes = [
+//                'notes' => 'changed',
+//                'title' => 'changed',
+//                'description' => 'changed'
+//            ])->assertRedirect($project->path());
+//
+//    }
 
     /** @test */
     public function guest_cannot_control_a_project()
@@ -64,6 +80,8 @@ class ManageProjectsTest extends TestCase
         $this->post('/projects', $project->toArray())->assertRedirect('/login');
 
         $this->get('/projects/create')->assertRedirect('/login');
+
+        $this->get('/projects/{project}/edit')->assertRedirect('/login');
 
         $this->get($project->path())->assertRedirect('/login');
 
@@ -97,15 +115,11 @@ class ManageProjectsTest extends TestCase
     /** @test */
     public function a_user_can_view_their_project()
     {
-//        $this->withoutExceptionHandling();
+        $this->get('/projects/create')->assertStatus(302);
 
-        $this->signIn();
+        $project = ProjectFactory::create();
 
-        $this->get('/projects/create')->assertStatus(200);
-
-        $project = factory('App\Project')->create(['owner_id' => auth()->id()]);
-
-        $this->get($project->path())
+        $this->actingAs($project->owner)->get($project->path())
             ->assertSee($project->title)
             ->assertSee($project->description);
     }
